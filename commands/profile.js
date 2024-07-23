@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { saveProfile, getProfile } = require('../database/sqlite');
 
 const currentYear = new Date().getFullYear();
@@ -6,113 +6,197 @@ const currentYear = new Date().getFullYear();
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('Set or view your profile information'),
+        .setDescription('Set or view a user\'s profile information')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('The user whose profile you want to view')
+        ),
     async execute(interaction) {
-        const existingProfile = await getProfile(interaction.user.id);
+        try {
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            const userId = targetUser.id;
 
-        if (existingProfile) {
-            await showProfile(interaction, existingProfile);
-        } else {
-            await promptProfileCreation(interaction);
+            const existingProfile = await getProfile(userId);
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+            const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+            if (existingProfile) {
+                await showProfile(interaction, existingProfile, !isAdmin && userId !== interaction.user.id);
+            } else {
+                const profile = {
+                    id: userId,
+                    username: targetUser.username,
+                    region: 'N/A',
+                    platform: 'N/A',
+                    gamertag: 'N/A',
+                    tier: 'N/A'
+                };
+                await showProfile(interaction, profile, !isAdmin && userId !== interaction.user.id);
+            }
+        } catch (error) {
+            console.error('Error handling interaction:', error);
+            if (!interaction.replied) {
+                await interaction.reply({ content: 'An error occurred while processing your request.', ephemeral: true });
+            }
         }
     },
     handleProfileModal,
     handleModalSubmit
 };
 
-async function showProfile(interaction, profile) {
-    const age = currentYear - profile.birthYear;
+async function showProfile(interaction, profile, disableEdit = false) {
+    try {
+        const user = interaction.options.getUser('user') || interaction.user;
+        const member = await interaction.guild.members.fetch(user.id);
+        const highestRole = member.roles.highest;
 
-    const embed = {
-        color: 0x0099FF,
-        title: `Profile for ${profile.username}`,
-        fields: [
-            { name: 'Age', value: age, inline: true },
-            { name: 'Region', value: profile.region || 'Not set', inline: true },
-            { name: 'Platform', value: profile.platform || 'Not set', inline: true }
-        ],
-        timestamp: new Date(),
-        footer: { text: 'Profile Information' }
-    };
+        const highestRoleMention = highestRole.name === '@everyone' ? '``N/A``' : `<@&${highestRole.id}>`;
 
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('update_profile')
-                .setLabel('Update Profile')
-                .setStyle(ButtonStyle.Primary)
-        );
+        const embed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setAuthor({
+                name: `${user.username}'s Profile`,
+                iconURL: user.displayAvatarURL({ format: 'png', dynamic: true }),
+            })
+            .addFields([
+                {
+                    name: '__Server stats__',
+                    value: `<:members:1265290520804986952> ┃Perm: ${highestRoleMention}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profile.tier || 'N/A'}\`\`\n\n🎮┃Platform: \`\`${profile.platform || 'N/A'}\`\``,
+                    inline: true
+                },
+                { 
+                    name: '** **', 
+                    value: `<:xbox:1265290407550517260>┃Gamertag: \`\`${profile.gamertag || 'N/A'}\`\`\n\n🗺️┃Region: \`\`${profile.region || 'N/A'}\`\`\n\n<:exclamation:1265290747171836021>┃Warnings:`, 
+                    inline: true 
+                },
+                { 
+                    name: '__User Stats__', 
+                    value: `⏱️┃Joined: ${member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${user.createdAt.toDateString()}`, 
+                    inline: false
+                }
+            ]);
 
-    await interaction.reply({ embeds: [embed], components: [row] });
-}
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`update_profile:${user.id}`)
+                    .setLabel('Update Profile')
+                    .setStyle(ButtonStyle.Primary)
+                    .setDisabled(disableEdit)
+            );
 
-async function promptProfileCreation(interaction) {
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('create_profile')
-                .setLabel('Create Profile')
-                .setStyle(ButtonStyle.Success)
-        );
-
-    await interaction.reply({ content: 'You don\'t have a profile yet. Would you like to create one?', components: [row] });
+        if (!interaction.replied) {
+            await interaction.reply({ embeds: [embed], components: [row] });
+        } else {
+            await interaction.followUp({ embeds: [embed], components: [row] });
+        }
+    } catch (error) {
+        console.error('Error showing profile:', error);
+        if (!interaction.replied) {
+            await interaction.reply({ content: 'An error occurred while showing the profile.', ephemeral: true });
+        }
+    }
 }
 
 async function handleProfileModal(interaction) {
-    const modal = new ModalBuilder()
-        .setCustomId('profile_modal')
-        .setTitle('Profile Information');
+    try {
+        const [, userId] = interaction.customId.split(':');
 
-    const birthYearInput = new TextInputBuilder()
-        .setCustomId('birthyear')
-        .setLabel("What's your birth year?")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
+        const modal = new ModalBuilder()
+            .setCustomId(`profile_modal:${userId}`)
+            .setTitle('Profile Information');
 
-    const regionInput = new TextInputBuilder()
-        .setCustomId('region')
-        .setLabel("What's your region?")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. Europe, North America, Asia')
-        .setRequired(true);
+        const regionInput = new TextInputBuilder()
+            .setCustomId('region')
+            .setLabel("What's your region?")
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('e.g. Europe, North America, Asia')
+            .setRequired(false);
 
-    const platformInput = new TextInputBuilder()
-        .setCustomId('platform')
-        .setLabel("What's your gaming platform?")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. PC, PlayStation, Xbox, Switch')
-        .setRequired(true);
+        const platformInput = new TextInputBuilder()
+            .setCustomId('platform')
+            .setLabel("What's your gaming platform?")
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('e.g. PC, PlayStation, Xbox, Switch')
+            .setRequired(false);
 
-    modal.addComponents(
-        new ActionRowBuilder().addComponents(birthYearInput),
-        new ActionRowBuilder().addComponents(regionInput),
-        new ActionRowBuilder().addComponents(platformInput)
-    );
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(regionInput),
+            new ActionRowBuilder().addComponents(platformInput)
+        );
 
-    await interaction.showModal(modal);
+        // Check if the user is an administrator
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+        if (isAdmin) {
+            const gamertagInput = new TextInputBuilder()
+                .setCustomId('gamertag')
+                .setLabel("What's your gamertag?")
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('e.g. XxGamerxX')
+                .setRequired(false);
+
+            const tierInput = new TextInputBuilder()
+                .setCustomId('tier')
+                .setLabel("What's your tier?")
+                .setStyle(TextInputStyle.Short)
+                .setPlaceholder('e.g. Gold, Platinum, Diamond')
+                .setRequired(false);
+
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(gamertagInput),
+                new ActionRowBuilder().addComponents(tierInput),
+            );
+        }
+
+        await interaction.showModal(modal);
+    } catch (error) {
+        console.error('Error handling profile modal:', error);
+        if (!interaction.replied) {
+            await interaction.reply({ content: 'An error occurred while handling the profile modal.', ephemeral: true });
+        }
+    }
 }
 
 async function handleModalSubmit(interaction) {
-    const birthYear = interaction.fields.getTextInputValue('birthyear');
-    const region = interaction.fields.getTextInputValue('region');
-    const platform = interaction.fields.getTextInputValue('platform');
+    try {
+        const [, userId] = interaction.customId.split(':');
 
-    const birthYearNumber = parseInt(birthYear);
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+        const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
 
-    if (isNaN(birthYearNumber) || birthYearNumber < 1900 || birthYearNumber > currentYear) {
-        await interaction.reply({ content: `You entered ${birthYear}. Please enter a valid birth year (between 1900 and ${currentYear}).`, ephemeral: true });
-        return;
+        const region = interaction.fields.getTextInputValue('region');
+        const platform = interaction.fields.getTextInputValue('platform');
+        const gamertag = isAdmin ? interaction.fields.getTextInputValue('gamertag') : null;
+        const tier = isAdmin ? interaction.fields.getTextInputValue('tier') : null;
+
+        const existingProfile = await getProfile(userId);
+
+        const defaultProfile = {
+            region: '',
+            platform: '',
+            gamertag: '',
+            tier: ''
+        };
+
+        const targetUser = await interaction.client.users.fetch(userId);
+
+        const profileUpdate = {
+            id: userId,
+            username: targetUser.username,
+            region: region || (existingProfile ? existingProfile.region : defaultProfile.region),
+            platform: platform || (existingProfile ? existingProfile.platform : defaultProfile.platform),
+            gamertag: gamertag || (existingProfile ? existingProfile.gamertag : defaultProfile.gamertag),
+            tier: tier || (existingProfile ? existingProfile.tier : defaultProfile.tier)
+        };
+
+        await saveProfile(profileUpdate);
+        await interaction.reply({ content: 'The profile has been updated!', ephemeral: true });
+    } catch (error) {
+        console.error('Error handling modal submit:', error);
+        if (!interaction.replied) {
+            await interaction.reply({ content: 'An error occurred while handling the modal submit.', ephemeral: true });
+        }
     }
-    
-    const profile = {
-        id: interaction.user.id,
-        username: interaction.user.username,
-        birthYear: parseInt(birthYear),
-        region,
-        platform
-    };
-    
-    await saveProfile(profile);
-    
-    await interaction.reply({ content: 'Your profile has been updated!', ephemeral: true });
 }

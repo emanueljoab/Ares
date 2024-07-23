@@ -14,9 +14,10 @@ function initializeDatabase() {
                     db.run(`CREATE TABLE IF NOT EXISTS profiles (
                         id TEXT PRIMARY KEY,
                         username TEXT,
-                        birth_year INTEGER,
                         region TEXT,
-                        platform TEXT
+                        platform TEXT,
+                        gamertag TEXT,
+                        tier TEXT
                     )`, (err) => {
                         if (err) {
                             reject(err);
@@ -34,9 +35,9 @@ function initializeDatabase() {
 function saveProfile(profile) {
     return new Promise((resolve, reject) => {
         const db = new sqlite3.Database(dbPath);
-        const { id, username, birthYear, region, platform } = profile;
-        db.run(`INSERT OR REPLACE INTO profiles (id, username, birth_year, region, platform) VALUES (?, ?, ?, ?, ?)`, 
-            [id, username, birthYear, region, platform], 
+        const { id, username, region, platform, gamertag, tier } = profile;
+        db.run(`INSERT OR REPLACE INTO profiles (id, username, region, platform, gamertag, tier) VALUES (?, ?, ?, ?, ?, ?)`, 
+            [id, username, region, platform, gamertag, tier], 
             (err) => {
                 if (err) {
                     console.error('Could not save profile', err);
@@ -58,14 +59,12 @@ function getProfile(userId) {
             if (err) {
                 reject(err);
             } else {
-                if (row && row.birth_year) {
-                    row.birthYear = parseInt(row.birth_year, 10); // Converta para número, se necessário
-                }
                 resolve(row);
             }
             db.close();
         });
     });
 }
+
 
 module.exports = { initializeDatabase, saveProfile, getProfile };
