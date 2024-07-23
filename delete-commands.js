@@ -24,20 +24,11 @@ for (const file of commandFiles) {
 // Constrói e prepara uma instância do módulo REST
 const rest = new REST().setToken(process.env.TOKEN);
 
-// Implementa seus comandos
-(async () => {
-	try {
-		console.log(`Started refreshing ${commands.length} application (/) commands.`);
+rest.put(Routes.applicationGuildCommands(process.env.clientId, process.env.guildId), { body: [] })
+	.then(() => console.log('Successfully deleted all guild commands.'))
+	.catch(console.error);
 
-		// O método put é usado para atualizar totalmente todos os comandos na guilda com o conjunto atual
-		const data = await rest.put(
-			Routes.applicationGuildCommands(process.env.clientId, process.env.guildId),
-			{ body: commands },
-		);
-
-		console.log(`Successfully reloaded ${data.length} application (/) commands.`);
-	} catch (error) {
-		// Captura e registra quaisquer erros
-		console.error(error);
-	}
-})();
+// for global commands
+rest.put(Routes.applicationCommands(process.env.clientId), { body: [] })
+	.then(() => console.log('Successfully deleted all application commands.'))
+	.catch(console.error);
