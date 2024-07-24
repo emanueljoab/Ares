@@ -18,6 +18,12 @@ function initializeDatabase() {
                         platform TEXT,
                         gamertag TEXT,
                         tier TEXT
+                    )`);
+                    db.run(`CREATE TABLE IF NOT EXISTS warnings (
+                        warn_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT,
+                        user_name TEXT,
+                        reason TEXT
                     )`, (err) => {
                         if (err) {
                             reject(err);
@@ -66,5 +72,58 @@ function getProfile(userId) {
     });
 }
 
+function saveWarning(warning) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        const { user_id, user_name, reason } = warning;
+        db.run(`INSERT INTO warnings (user_id, user_name, reason) VALUES (?, ?, ?)`, 
+            [user_id, user_name, reason], 
+            (err) => {
+                if (err) {
+                    console.error('Could not save warning', err);
+                    reject(err);
+                } else {
+                    console.log('Warning saved');
+                    resolve();
+                }
+                db.close();
+            }
+        );
+    });
+}
 
-module.exports = { initializeDatabase, saveProfile, getProfile };
+function getWarnings(userId) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.all('SELECT * FROM warnings WHERE user_id = ?', [userId], (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+            db.close();
+        });
+    });
+}
+
+function deleteWarning(warnId, userId) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.run('DELETE FROM warnings WHERE warn_id = ? AND user_id = ?', [warnId, userId], function(err) {
+            if (err) {
+                console.error('Could not delete warning', err);
+                reject(err);
+            } else {
+                if (this.changes > 0) {
+                    console.log('Warning deleted');
+                    resolve();
+                } else {
+                    reject(new Error('Warning not found or user mismatch'));
+                }
+            }
+            db.close();
+        });
+    });
+}
+
+module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning };

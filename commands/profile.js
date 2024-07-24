@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, EmbedBuilder } = require('discord.js');
-const { saveProfile, getProfile } = require('../database/sqlite');
+const { saveProfile, getProfile, getWarnings } = require('../database/sqlite');
 
 const currentYear = new Date().getFullYear();
 
@@ -48,9 +48,20 @@ async function showProfile(interaction, profile, disableEdit = false) {
     try {
         const user = interaction.options.getUser('user') || interaction.user;
         const member = await interaction.guild.members.fetch(user.id);
-        const highestRole = member.roles.highest;
+        
+        // Lógica para determinar o cargo a ser exibido
+        let displayRole = '``N/A``';
+        const roleOrder = ['admin', 'MOD', 'Membros'];
+        for (const roleName of roleOrder) {
+            if (member.roles.cache.some(role => role.name === roleName)) {
+                displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
+                break;
+            }
+        }
 
-        const highestRoleMention = highestRole.name === '@everyone' ? '``N/A``' : `<@&${highestRole.id}>`;
+        // Obtenha a contagem de warnings do usuário
+        const warnings = await getWarnings(user.id);
+        const warningCount = warnings.length;
 
         const embed = new EmbedBuilder()
             .setColor(0x0099FF)
@@ -61,17 +72,17 @@ async function showProfile(interaction, profile, disableEdit = false) {
             .addFields([
                 {
                     name: '__Server stats__',
-                    value: `<:members:1265290520804986952> ┃Perm: ${highestRoleMention}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profile.tier || 'N/A'}\`\`\n\n🎮┃Platform: \`\`${profile.platform || 'N/A'}\`\``,
+                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profile.tier || 'N/A'}\`\`\n\n🎮┃Platform: \`\`${profile.platform || 'N/A'}\`\``,
                     inline: true
                 },
-                { 
-                    name: '** **', 
-                    value: `<:xbox:1265290407550517260>┃Gamertag: \`\`${profile.gamertag || 'N/A'}\`\`\n\n🗺️┃Region: \`\`${profile.region || 'N/A'}\`\`\n\n<:exclamation:1265290747171836021>┃Warnings:`, 
-                    inline: true 
+                {
+                    name: '** **',
+                    value: `<:xbox:1265290407550517260>┃Gamertag: \`\`${profile.gamertag || 'N/A'}\`\`\n\n🗺️┃Region: \`\`${profile.region || 'N/A'}\`\`\n\n<:exclamation:1265290747171836021>┃Warnings: \`\`${warningCount}\`\``,
+                    inline: true
                 },
-                { 
-                    name: '__User Stats__', 
-                    value: `⏱️┃Joined: ${member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${user.createdAt.toDateString()}`, 
+                {
+                    name: '__User Stats__',
+                    value: `⏱️┃Joined: ${member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${user.createdAt.toDateString()}`,
                     inline: false
                 }
             ]);
