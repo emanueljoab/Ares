@@ -51,7 +51,7 @@ async function showProfile(interaction, profile, disableEdit = false) {
         
         // Lógica para determinar o cargo a ser exibido
         let displayRole = '``N/A``';
-        const roleOrder = ['admin', 'MOD', 'Membros'];
+        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant'];
         for (const roleName of roleOrder) {
             if (member.roles.cache.some(role => role.name === roleName)) {
                 displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
