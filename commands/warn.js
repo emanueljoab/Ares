@@ -7,8 +7,8 @@ module.exports = {
         .setDescription('Warn a user')
         .addUserOption(option =>
             option.setName('target')
-            .setDescription('The user to warn')
-            .setRequired(true)),
+                .setDescription('The user to warn')
+                .setRequired(true)),
 
     async execute(interaction) {
         if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -52,32 +52,41 @@ module.exports = {
         const [action, , userId] = interaction.customId.split('_');
         const user = await interaction.client.users.fetch(userId);
 
-        if (action === 'add') {
-            const modal = new ModalBuilder()
-                .setCustomId(`warn_modal_${user.id}`)
-                .setTitle('Add a Warning');
+        // Verifica se o usuário tem permissão para adicionar ou deletar warnings
+        if (action === 'add' || action === 'delete') {
+            if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                return interaction.reply({ content: 'You do not have permission to use this action.', ephemeral: true });
+            }
 
-            const reasonInput = new TextInputBuilder()
-                .setCustomId('reason')
-                .setLabel('Reason')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true);
+            if (action === 'add') {
+                const modal = new ModalBuilder()
+                    .setCustomId(`warn_modal_${user.id}`)
+                    .setTitle('Add a Warning');
 
-            modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
-            await interaction.showModal(modal);
-        } else if (action === 'delete') {
-            const modal = new ModalBuilder()
-                .setCustomId(`delete_warn_modal_${user.id}`)
-                .setTitle('Delete a Warning');
+                const reasonInput = new TextInputBuilder()
+                    .setCustomId('reason')
+                    .setLabel('Reason')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
 
-            const warnIdInput = new TextInputBuilder()
-                .setCustomId('warn_id')
-                .setLabel('Warn ID to delete')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
+                modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+                await interaction.showModal(modal);
+            } else if (action === 'delete') {
+                const modal = new ModalBuilder()
+                    .setCustomId(`delete_warn_modal_${user.id}`)
+                    .setTitle('Delete a Warning');
 
-            modal.addComponents(new ActionRowBuilder().addComponents(warnIdInput));
-            await interaction.showModal(modal);
+                const warnIdInput = new TextInputBuilder()
+                    .setCustomId('warn_id')
+                    .setLabel('Warn ID to delete')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(new ActionRowBuilder().addComponents(warnIdInput));
+                await interaction.showModal(modal);
+            }
+        } else {
+            await interaction.reply({ content: 'Invalid action.', ephemeral: true });
         }
     },
 
@@ -164,4 +173,4 @@ module.exports = {
             await interaction.followUp({ embeds: [embed], components: [row], ephemeral: true });
         }
     }
-}; 
+};

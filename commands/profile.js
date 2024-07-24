@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Modal
 const { saveProfile, getProfile, getWarnings } = require('../database/sqlite');
 
 const currentYear = new Date().getFullYear();
+let messageCache = {}; // Cache para armazenar IDs de mensagem
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -48,10 +49,9 @@ async function showProfile(interaction, profile, disableEdit = false) {
     try {
         const user = interaction.options.getUser('user') || interaction.user;
         const member = await interaction.guild.members.fetch(user.id);
-        
-        // Lógica para determinar o cargo a ser exibido
+
         let displayRole = '``N/A``';
-        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant'];
+        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant', 'admin', 'MOD', 'Membros'];
         for (const roleName of roleOrder) {
             if (member.roles.cache.some(role => role.name === roleName)) {
                 displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
@@ -59,7 +59,6 @@ async function showProfile(interaction, profile, disableEdit = false) {
             }
         }
 
-        // Obtenha a contagem de warnings do usuário
         const warnings = await getWarnings(user.id);
         const warningCount = warnings.length;
 
@@ -97,7 +96,8 @@ async function showProfile(interaction, profile, disableEdit = false) {
             );
 
         if (!interaction.replied) {
-            await interaction.reply({ embeds: [embed], components: [row] });
+            const reply = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+            messageCache[user.id] = reply.id; // Armazene a ID da mensagem no cache
         } else {
             await interaction.followUp({ embeds: [embed], components: [row] });
         }
@@ -136,7 +136,6 @@ async function handleProfileModal(interaction) {
             new ActionRowBuilder().addComponents(platformInput)
         );
 
-        // Check if the user is an administrator
         const member = await interaction.guild.members.fetch(interaction.user.id);
         const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
 
@@ -203,7 +202,48 @@ async function handleModalSubmit(interaction) {
         };
 
         await saveProfile(profileUpdate);
-        await interaction.reply({ content: 'The profile has been updated!', ephemeral: true });
+
+        // Edita a mensagem original
+        let displayRole = '``N/A``';
+        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant', 'admin', 'MOD', 'Membros'];
+        for (const roleName of roleOrder) {
+            if (member.roles.cache.some(role => role.name === roleName)) {
+                displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
+                break;
+            }
+        }
+
+        const warnings = await getWarnings(targetUser.id);
+        const warningCount = warnings.length;
+
+        const channel = await interaction.channel.messages.fetch(messageCache[userId]);
+        const embed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setAuthor({
+                name: `${targetUser.username}'s Profile`,
+                iconURL: targetUser.displayAvatarURL({ format: 'png', dynamic: true }),
+            })
+            .addFields([
+                {
+                    name: '__Server stats__',
+                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profileUpdate.tier}\`\`\n\n🎮┃Platform: \`\`${profileUpdate.platform}\`\``,
+                    inline: true
+                },
+                {
+                    name: '** **',
+                    value: `<:xbox:1265290407550517260>┃Gamertag: \`\`${profileUpdate.gamertag}\`\`\n\n🗺️┃Region: \`\`${profileUpdate.region}\`\`\n\n<:exclamation:1265290747171836021>┃Warnings: \`\`${warningCount}\`\``,
+                    inline: true
+                },
+                {
+                    name: '__User Stats__',
+                    value: `⏱️┃Joined: ${interaction.member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${interaction.user.createdAt.toDateString()}`,
+                    inline: false
+                }
+            ]);
+
+        await channel.edit({ embeds: [embed] });
+
+        await interaction.deferUpdate();
     } catch (error) {
         console.error('Error handling modal submit:', error);
         if (!interaction.replied) {

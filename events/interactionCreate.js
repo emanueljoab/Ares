@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, PermissionsBitField } = require('discord.js');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -27,9 +27,15 @@ module.exports = {
                 return;
             }
             if (interaction.customId.startsWith('update_profile:')) {
-                await profileCommand.handleProfileModal(interaction);
-            } else if (interaction.customId.startsWith('admin_update_profile:')) {
-                await profileCommand.handleAdminModal(interaction);
+                const [, userId] = interaction.customId.split(':');
+                const member = await interaction.guild.members.fetch(interaction.user.id);
+                const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+                
+                if (isAdmin || interaction.user.id === userId) {
+                    await profileCommand.handleProfileModal(interaction);
+                } else {
+                    await interaction.reply({ content: 'You cannot update this profile.', ephemeral: true });
+                }
             } else if (interaction.customId.startsWith('add_warn_')) {
                 await warnCommand.handleButton(interaction);
             } else if (interaction.customId.startsWith('delete_warn_')) {
@@ -52,6 +58,5 @@ module.exports = {
                 await warnCommand.handleModalSubmit(interaction);
             }
         }
-    },
+    }
 };
- 
