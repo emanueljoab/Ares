@@ -121,16 +121,24 @@ module.exports = {
             await interaction.reply({ content: 'Error fetching user information.', ephemeral: true });
             return;
         }
-    
+        
         if (action === 'add') {
             const reason = interaction.fields.getTextInputValue('reason');
             await saveWarning({ user_id: user.id, user_name: user.tag, reason });
-            await interaction.reply({ content: `Warn added to ${user.tag}.`, ephemeral: true });
+
+            try {
+                await interaction.deferUpdate();
+                await user.send(`You have been warned.\nReason: ${reason}`)
+            } catch (error) {
+                await interaction.followUp({ content: `${user} has been warned.\nReason: ${reason}`, ephemeral: false });
+                console.error(`Failed to send DM to ${user.tag}:`, error)
+                
+            }
         } else if (action === 'delete') {
             const warnId = interaction.fields.getTextInputValue('warn_id');
             try {
                 await deleteWarning(warnId, user.id);
-                await interaction.reply({ content: `Warn ID ${warnId} has been deleted.`, ephemeral: true });
+                await interaction.deferUpdate();
             } catch (error) {
                 await interaction.reply({ content: `Failed to delete warning: ${error.message}`, ephemeral: true });
                 return;
