@@ -6,7 +6,7 @@ module.exports = {
         .setName('warn')
         .setDescription('Warn a user')
         .addUserOption(option =>
-            option.setName('target')
+            option.setName('user')
                 .setDescription('The user to warn')
                 .setRequired(true)),
 
@@ -15,7 +15,7 @@ module.exports = {
             return interaction.reply({ content: 'You do not have permission to use this command.', ephemeral: true });
         }
 
-        const targetUser = interaction.options.getUser('target');
+        const targetUser = interaction.options.getUser('user');
         const warnings = await getWarnings(targetUser.id);
 
         const embed = new EmbedBuilder()

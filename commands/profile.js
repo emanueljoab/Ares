@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { saveProfile, getProfile, getWarnings } = require('../database/sqlite');
 
-const currentYear = new Date().getFullYear();
 let messageCache = {}; // Cache para armazenar IDs de mensagem
 
 module.exports = {
