@@ -24,6 +24,13 @@ function initializeDatabase() {
                         user_id TEXT,
                         user_name TEXT,
                         reason TEXT
+                    )`);
+                    db.run(`CREATE TABLE IF NOT EXISTS levels (
+                        userId TEXT PRIMARY KEY,
+                        username TEXT,
+                        guildId TEXT,
+                        xp INTEGER,
+                        level INTEGER
                     )`, (err) => {
                         if (err) {
                             reject(err);
@@ -126,4 +133,39 @@ function deleteWarning(warnId, userId) {
     });
 }
 
-module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning };
+// Funções adicionadas para o sistema de níveis
+
+function getUserLevel(userId, guildId) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.get('SELECT * FROM levels WHERE userId = ? AND guildId = ?', [userId, guildId], (err, row) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(row);
+            }
+            db.close();
+        });
+    });
+}
+
+function updateUserLevel(userId, username, guildId, xp, level) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.run(`INSERT OR REPLACE INTO levels (userId, username, guildId, xp, level) VALUES (?, ?, ?, ?, ?)`, 
+            [userId, username, guildId, xp, level], 
+            (err) => {
+                if (err) {
+                    console.error('Could not update user level', err);
+                    reject(err);
+                } else {
+                    console.log('User level updated');
+                    resolve();
+                }
+                db.close();
+            }
+        );
+    });
+}
+
+module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning, getUserLevel, updateUserLevel };

@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, EmbedBuilder } = require('discord.js');
-const { saveProfile, getProfile, getWarnings } = require('../database/sqlite');
+const { saveProfile, getProfile, getWarnings, getUserLevel } = require('../database/sqlite');
 
 let messageCache = {}; // Cache para armazenar IDs de mensagem
 
@@ -20,8 +20,14 @@ module.exports = {
             const member = await interaction.guild.members.fetch(interaction.user.id);
             const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
 
+            const userLevel = await getUserLevel(userId, interaction.guild.id);
+            const level = userLevel ? userLevel.level : 1;
+            const xp = userLevel ? userLevel.xp : 0;
+            const nextLevelXp = Math.pow((level + 1) / 0.1, 2); // XP necessário para o próximo nível
+            const progressBar = createProgressBar(xp, nextLevelXp);
+
             if (existingProfile) {
-                await showProfile(interaction, existingProfile, !isAdmin && userId !== interaction.user.id);
+                await showProfile(interaction, existingProfile, !isAdmin && userId !== interaction.user.id, level, progressBar);
             } else {
                 const profile = {
                     id: userId,
@@ -31,7 +37,7 @@ module.exports = {
                     gamertag: 'N/A',
                     tier: 'N/A'
                 };
-                await showProfile(interaction, profile, !isAdmin && userId !== interaction.user.id);
+                await showProfile(interaction, profile, !isAdmin && userId !== interaction.user.id, level, progressBar);
             }
         } catch (error) {
             console.error('Error handling interaction:', error);
@@ -44,7 +50,7 @@ module.exports = {
     handleModalSubmit
 };
 
-async function showProfile(interaction, profile, disableEdit = false) {
+async function showProfile(interaction, profile, disableEdit = false, level = 1, progressBar = '') {
     try {
         const user = interaction.options.getUser('user') || interaction.user;
         const member = await interaction.guild.members.fetch(user.id);
@@ -83,7 +89,8 @@ async function showProfile(interaction, profile, disableEdit = false) {
                     value: `⏱️┃Joined: ${member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${user.createdAt.toDateString()}`,
                     inline: false
                 }
-            ]);
+            ])
+            .setDescription(`🏆┃Level: \`\`${level}\`\`\n${progressBar}`);
 
         const row = new ActionRowBuilder()
             .addComponents(
@@ -106,6 +113,13 @@ async function showProfile(interaction, profile, disableEdit = false) {
             await interaction.reply({ content: 'An error occurred while showing the profile.', ephemeral: true });
         }
     }
+}
+
+function createProgressBar(currentXp, nextLevelXp) {
+    const totalBlocks = 20; // Número total de blocos na barra de progresso
+    const filledBlocks = Math.floor((currentXp / nextLevelXp) * totalBlocks);
+    const emptyBlocks = totalBlocks - filledBlocks;
+    return `${'█'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)} (${Math.round((currentXp / nextLevelXp) * 100)}%)`;
 }
 
 async function handleProfileModal(interaction) {
@@ -180,6 +194,12 @@ async function handleModalSubmit(interaction) {
         const gamertag = isAdmin ? interaction.fields.getTextInputValue('gamertag') : null;
         const tier = isAdmin ? interaction.fields.getTextInputValue('tier') : null;
 
+        const userLevel = await getUserLevel(userId, interaction.guild.id);
+        const level = userLevel ? userLevel.level : 1;
+        const xp = userLevel ? userLevel.xp : 0;
+        const nextLevelXp = Math.pow((level + 1) / 0.1, 2); // XP necessário para o próximo nível
+        const progressBar = createProgressBar(xp, nextLevelXp);
+
         const existingProfile = await getProfile(userId);
 
         const defaultProfile = {
@@ -238,7 +258,8 @@ async function handleModalSubmit(interaction) {
                     value: `⏱️┃Joined: ${interaction.member.joinedAt.toDateString()}\n<:member:1265290796249382993>┃Account Created: ${interaction.user.createdAt.toDateString()}`,
                     inline: false
                 }
-            ]);
+            ])
+            .setDescription(`🏆┃Level: \`\`${level}\`\`\n${progressBar}`);
 
         await channel.edit({ embeds: [embed] });
 
