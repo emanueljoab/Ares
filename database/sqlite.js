@@ -31,7 +31,12 @@ function initializeDatabase() {
                         guildId TEXT,
                         xp INTEGER,
                         level INTEGER
-                    )`, (err) => {
+                    )`); 
+                    db.run(`CREATE TABLE IF NOT EXISTS roles (
+                        guildId TEXT,
+                        role TEXT,
+                        level INTEGER
+                        )`, (err) => {
                         if (err) {
                             reject(err);
                         } else {
@@ -168,4 +173,39 @@ function updateUserLevel(userId, username, guildId, xp, level) {
     });
 }
 
-module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning, getUserLevel, updateUserLevel };
+function insertRole(guildId, role, level) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.run(`INSERT INTO roles (guildId, role, level) VALUES (?, ?, ?)`, 
+            [guildId, role, level], 
+            (err) => {
+                if (err) {
+                    console.error('Could not insert role', err);
+                    reject(err);
+                } else {
+                    console.log('Role inserted');
+                    resolve();
+                }
+                db.close();
+            }
+        );
+    });
+}
+
+function getRolesByLevel(guildId, level) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.all('SELECT role FROM roles WHERE guildId = ? AND level = ?', [guildId, level], (err, rows) => {
+            if (err) {
+                console.error('Could not get roles by level', err);
+                reject(err);
+            } else {
+                const roleIds = rows.map(row => row.role);
+                resolve(roleIds);
+            }
+            db.close();
+        });
+    });
+}
+
+module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning, getUserLevel, updateUserLevel, insertRole, getRolesByLevel };

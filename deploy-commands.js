@@ -31,8 +31,8 @@ const rest = new REST().setToken(process.env.TOKEN);
 
 		// O método put é usado para atualizar totalmente todos os comandos na guilda com o conjunto atual
 		const data = await rest.put(
-			Routes.applicationGuildCommands(process.env.clientId, process.env.guildId),
-			
+
+			Routes.applicationCommands(process.env.clientId),
 			{ body: commands },
 		);
 
