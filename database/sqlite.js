@@ -192,6 +192,30 @@ function insertRole(guildId, role, level) {
     });
 }
 
+function deleteRole(guildId, role, level) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.run(`DELETE FROM roles WHERE guildId = ? AND role = ? AND level = ?`,
+            [guildId, role, level],
+            function(err) {  // Usamos function() em vez de arrow function para ter acesso a `this`
+                if (err) {
+                    console.error('Could not delete role', err);
+                    db.close();
+                    reject(err);
+                } else {
+                    if (this.changes > 0) {
+                        console.log('Role deleted successfully');
+                    } else {
+                        console.log('No matching role found to delete');
+                    }
+                    db.close();
+                    resolve({ changes: this.changes });
+                }
+            }
+        );
+    });
+}
+
 function getRolesByLevel(guildId, level) {
     return new Promise((resolve, reject) => {
         const db = new sqlite3.Database(dbPath);
@@ -208,4 +232,20 @@ function getRolesByLevel(guildId, level) {
     });
 }
 
-module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning, getUserLevel, updateUserLevel, insertRole, getRolesByLevel };
+function getRoles(guildId) {
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath);
+        db.all(`SELECT role, level FROM roles WHERE guildId = ? ORDER BY level ASC`, [guildId], (err, rows) => {
+            if (err) {
+                console.error('Could not fetch roles', err);
+                db.close();
+                reject(err);
+            } else {
+                db.close();
+                resolve(rows);
+            }
+        });
+    });
+}
+
+module.exports = { initializeDatabase, saveProfile, getProfile, saveWarning, getWarnings, deleteWarning, getUserLevel, updateUserLevel, insertRole, deleteRole, getRolesByLevel, getRoles };
