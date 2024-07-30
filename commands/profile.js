@@ -56,7 +56,7 @@ async function showProfile(interaction, profile, disableEdit = false, level = 1,
         const member = await interaction.guild.members.fetch(user.id);
 
         let displayRole = '``N/A``';
-        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant', 'admin', 'MOD', 'Membros'];
+        const roleOrder = ['‹🜲›', '𓆩⁂𓆪', '𓆩⁑𓆪', '𓆩⁎𓆪', 'Booster', 'Peasant', 'Phantom', 'admin', 'MOD', 'Membros'];
         for (const roleName of roleOrder) {
             if (member.roles.cache.some(role => role.name === roleName)) {
                 displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
