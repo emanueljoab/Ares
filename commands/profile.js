@@ -35,7 +35,7 @@ module.exports = {
                     region: 'N/A',
                     platform: 'N/A',
                     gamertag: 'N/A',
-                    tier: 'N/A'
+                    tier: '`N/A`'
                 };
                 await showProfile(interaction, profile, !isAdmin && userId !== interaction.user.id, level, progressBar);
             }
@@ -55,14 +55,10 @@ async function showProfile(interaction, profile, disableEdit = false, level = 1,
         const user = interaction.options.getUser('user') || interaction.user;
         const member = await interaction.guild.members.fetch(user.id);
 
-        let displayRole = '``N/A``';
-        const roleOrder = ['‹🜲›', '𓆩⁂𓆪', '𓆩⁑𓆪', '𓆩⁎𓆪', 'Booster', 'Peasant', 'Phantom', 'admin', 'MOD', 'Membros'];
-        for (const roleName of roleOrder) {
-            if (member.roles.cache.some(role => role.name === roleName)) {
-                displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
-                break;
-            }
-        }
+        const highestRole = member.roles.highest;
+
+        // Define o displayRole com o maior cargo, ou 'N/A' se não tiver cargos
+        const displayRole = highestRole ? `<@&${highestRole.id}>` : '``N/Aa``';
 
         const warnings = await getWarnings(user.id);
         const warningCount = warnings.length;
@@ -76,7 +72,7 @@ async function showProfile(interaction, profile, disableEdit = false, level = 1,
             .addFields([
                 {
                     name: '__Server stats__',
-                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profile.tier || 'N/A'}\`\`\n\n🎮┃Platform: \`\`${profile.platform || 'N/A'}\`\``,
+                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: ${profile.tier || '``N/Aa``'}\n\n🎮┃Platform: \`\`${profile.platform || 'N/A'}\`\``,
                     inline: true
                 },
                 {
@@ -164,7 +160,7 @@ async function handleProfileModal(interaction) {
                 .setCustomId('tier')
                 .setLabel("What's your tier?")
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('e.g. Gold, Platinum, Diamond')
+                .setPlaceholder('Insert only the letter, e.g. S, A, B, C, D')
                 .setRequired(false);
 
             modal.addComponents(
@@ -194,10 +190,41 @@ async function handleModalSubmit(interaction) {
         const gamertag = isAdmin ? interaction.fields.getTextInputValue('gamertag') : null;
         const tier = isAdmin ? interaction.fields.getTextInputValue('tier') : null;
 
+        const tierToRole = {
+            'S': 'Apex (S Tier)',
+            'A': 'Maestro (A Tier)',
+            'B': 'Specialist (B Tier)',
+            'C': 'Operator (C Tier)',
+            'D': 'Apprentice (D Tier)'
+        };
+
+        let tierRoleId = null;
+
+        if (isAdmin && tier) {
+            const upperTier = tier.toUpperCase();
+            const roleName = tierToRole[upperTier];
+            if (roleName) {
+                const role = interaction.guild.roles.cache.find(r => r.name === roleName);
+                if (role) {
+                    const targetMember = await interaction.guild.members.fetch(userId);
+                    // Remova todos os cargos de tier anteriores
+                    for (const tierRole of Object.values(tierToRole)) {
+                        const existingRole = interaction.guild.roles.cache.find(r => r.name === tierRole);
+                        if (existingRole && targetMember.roles.cache.has(existingRole.id)) {
+                            await targetMember.roles.remove(existingRole);
+                        }
+                    }
+                    // Adicione o novo cargo de tier
+                    await targetMember.roles.add(role);
+                    tierRoleId = role.id;
+                }
+            }
+        }
+
         const userLevel = await getUserLevel(userId, interaction.guild.id);
         const level = userLevel ? userLevel.level : 1;
         const xp = userLevel ? userLevel.xp : 0;
-        const nextLevelXp = Math.pow((level + 1) / 0.1, 2); // XP necessário para o próximo nível
+        const nextLevelXp = Math.pow((level + 1) / 0.1, 2);
         const progressBar = createProgressBar(xp, nextLevelXp);
 
         const existingProfile = await getProfile(userId);
@@ -217,20 +244,15 @@ async function handleModalSubmit(interaction) {
             region: region || (existingProfile ? existingProfile.region : defaultProfile.region),
             platform: platform || (existingProfile ? existingProfile.platform : defaultProfile.platform),
             gamertag: gamertag || (existingProfile ? existingProfile.gamertag : defaultProfile.gamertag),
-            tier: tier || (existingProfile ? existingProfile.tier : defaultProfile.tier)
+            tier: tierRoleId ? `<@&${tierRoleId}>` : (existingProfile ? existingProfile.tier : defaultProfile.tier)
         };
 
         await saveProfile(profileUpdate);
+      
+        const highestRole = member.roles.highest;
 
-        // Edita a mensagem original
-        let displayRole = '``N/A``';
-        const roleOrder = ['𓆩♛𓆪', '𓆩⁂𓆪', '𓆩⁑𓆪', 'Booster', 'Peasant', 'admin', 'MOD', 'Membros'];
-        for (const roleName of roleOrder) {
-            if (member.roles.cache.some(role => role.name === roleName)) {
-                displayRole = `<@&${member.roles.cache.find(role => role.name === roleName).id}>`;
-                break;
-            }
-        }
+        // Define o displayRole com o maior cargo, ou 'N/A' se não tiver cargos
+        const displayRole = highestRole ? `<@&${highestRole.id}>` : '``N/A``';
 
         const warnings = await getWarnings(targetUser.id);
         const warningCount = warnings.length;
@@ -245,12 +267,12 @@ async function handleModalSubmit(interaction) {
             .addFields([
                 {
                     name: '__Server stats__',
-                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: \`\`${profileUpdate.tier}\`\`\n\n🎮┃Platform: \`\`${profileUpdate.platform}\`\``,
+                    value: `<:members:1265290520804986952> ┃Perm: ${displayRole}\n\n<:crown:1265290647720693810>┃Tier: ${profileUpdate.tier || '`N/A`'}\n\n🎮┃Platform: \`${profileUpdate.platform || 'N/A'}\``,
                     inline: true
                 },
                 {
-                    name: '** **',
-                    value: `<:xbox:1265290407550517260>┃Gamertag: \`\`${profileUpdate.gamertag}\`\`\n\n🗺️┃Region: \`\`${profileUpdate.region}\`\`\n\n<:exclamation:1265290747171836021>┃Warnings: \`\`${warningCount}\`\``,
+                    name: '\u200B',
+                    value: `<:xbox:1265290407550517260>┃Gamertag: \`${profileUpdate.gamertag || 'N/A'}\`\n\n🗺️┃Region: \`${profileUpdate.region || 'N/A'}\`\n\n<:exclamation:1265290747171836021>┃Warnings: \`${warningCount}\``,
                     inline: true
                 },
                 {
@@ -259,7 +281,7 @@ async function handleModalSubmit(interaction) {
                     inline: false
                 }
             ])
-            .setDescription(`🏆┃Level: \`\`${level}\`\`\n${progressBar}`);
+            .setDescription(`🏆┃Level: \`${level}\`\n${progressBar}`);
 
         await channel.edit({ embeds: [embed] });
 
