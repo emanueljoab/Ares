@@ -48,11 +48,6 @@ module.exports = {
                 if (role && !member.roles.cache.has(roleId)) {
                     await member.roles.add(role);
                     console.log(`Added role ${role} to user ${username}`);
-
-                    const embed = new EmbedBuilder()
-                        .setDescription(`Added role ${role} to user ${username}.`)
-
-                    message.channel.send({ embeds: [embed]});
                 }
             }
         }
